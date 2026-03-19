@@ -1,0 +1,114 @@
+tools:
+  exiftool_path: exiftool
+  imagemagick_path: magick
+  darktable_cli: darktable-cli
+
+paths:
+  source_root: /Users/bob/photos_for_tests
+  derivative_root: /Users/bob/photo_derivatives
+                              
+files:
+  raw_extensions:
+    - .arw
+    - .nef
+    - .cr2
+    - .cr3
+    - .dng
+    - .rw2
+    - .orf
+    - .raf
+  jpeg_extensions:
+    - .jpg
+    - .jpeg
+  generated_jpeg_extension: .jpg
+
+metadata:
+  copy_tags:
+    exif:
+      - DateTimeOriginal
+      - CreateDate
+      - ModifyDate
+      - OffsetTime
+      - OffsetTimeOriginal
+      - OffsetTimeDigitized
+      - Make
+      - Model
+      - LensModel
+      - LensID
+      - FocalLength
+      - FNumber
+      - ExposureTime
+      - ISO
+      - ExposureCompensation
+      - ExposureProgram
+      - MeteringMode
+      - Flash
+      - Orientation
+      - WhiteBalance
+      - ColorSpace
+      - Artist
+      - Copyright
+    gps:
+      - GPSLatitude
+      - GPSLatitudeRef
+      - GPSLongitude
+      - GPSLongitudeRef
+      - GPSAltitude
+      - GPSAltitudeRef
+      - GPSDateStamp
+      - GPSTimeStamp
+    iptc:
+      - ObjectName
+      - Caption-Abstract
+      - Keywords
+      - By-line
+      - CopyrightNotice
+    xmp:
+      - dc:Title
+      - dc:Description
+      - dc:Subject
+      - dc:Creator
+      - dc:Rights
+      - xmp:Rating
+      - xmp:Label
+
+  validate_tags:
+    - EXIF:DateTimeOriginal
+    - EXIF:Make
+    - EXIF:Model
+    - EXIF:LensModel
+    - EXIF:FocalLength
+    - EXIF:FNumber
+    - EXIF:ExposureTime
+    - EXIF:ISO
+    - EXIF:GPSLatitude
+    - EXIF:GPSLongitude
+    - XMP-xmp:Rating
+    - XMP-xmp:Label
+
+  provenance:
+    software_tag: EXIF:Software
+    software_value: Photo Cull Pipeline
+    generated_label_tag: XMP-xmp:Label
+    generated_label_value: GeneratedFromRAW
+    append_description_tag: XMP-dc:Description
+    append_description_value: Generated from RAW by Photo Cull Pipeline
+    pipeline_version_tag: XMP-xmp:CreatorTool
+
+derivatives:
+  preserve_relative_paths: true
+  jpeg_quality: 92
+  overwrite_existing: false
+
+logging:
+  level: INFO
+  log_exiftool_stdout: false
+  log_exiftool_stderr: true
+
+render:
+  enabled: true
+  prefer_existing_derivative: true
+  overwrite_existing: false
+  jpeg_quality: 92
+  tool_priority:
+    - darktable-cli

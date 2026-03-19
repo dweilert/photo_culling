@@ -1,0 +1,22 @@
+services:
+  app:
+    build: ./app
+    container_name: photo_cull_app
+    environment:
+      DB_PATH: /data/catalog.db
+      PHOTO_ROOT: /photos
+    volumes:
+      - /Users/bob/data:/data
+      - /Users/bob/photos_for_tests:/photos:ro
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: photo_cull_ollama
+    profiles: ["ai"]
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  ollama_data:
