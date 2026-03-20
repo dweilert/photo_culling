@@ -4,7 +4,6 @@ from __future__ import annotations
 # Imports
 # ============================================================
 from collections.abc import Callable, Iterable
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -197,136 +196,6 @@ def write_result_to_db(
     )
 
 
-def process_one_pair(
-    pair: PairedImage,
-    *,
-    source_root: Path,
-    derivative_root: Path,
-    config: dict[str, Any],
-) -> PairProcessResult:
-    if not is_processable_status(pair.status):
-        return build_skipped_result(pair, reason="pair status is ambiguous")
-
-    try:
-        analysis_result = process_pair(
-            pair=pair,
-            source_root=source_root,
-            derivative_root=derivative_root,
-            config=config,
-        )
-        return build_result_from_analysis(pair, analysis_result)
-    except Exception as exc:
-        return build_failed_result_from_exception(pair, exc)
-
-
-def _process_pairs_sequential(
-    *,
-    pair_list: list[PairedImage],
-    source_root: Path,
-    derivative_root: Path,
-    config: dict[str, Any],
-    progress: ProgressCallback | None,
-    conn,
-    run_id: int | None,
-) -> list[PairProcessResult]:
-    total = len(pair_list)
-    results: list[PairProcessResult] = []
-
-    for current, pair in enumerate(pair_list, start=1):
-        pair_id = make_pair_id(pair)
-
-        if is_processable_status(pair.status):
-            emit_progress(
-                progress,
-                current=current,
-                total=total,
-                pair_id=pair_id,
-                status=STATUS_STARTED,
-            )
-
-        result = process_one_pair(
-            pair,
-            source_root=source_root,
-            derivative_root=derivative_root,
-            config=config,
-        )
-        results.append(result)
-
-        if conn is not None and run_id is not None:
-            write_result_to_db(conn=conn, run_id=run_id, result=result)
-
-        emit_progress(
-            progress,
-            current=current,
-            total=total,
-            pair_id=result.pair_id,
-            status=result.status,
-            message=result.error_message,
-        )
-
-    return results
-
-
-def _process_pairs_parallel(
-    *,
-    pair_list: list[PairedImage],
-    source_root: Path,
-    derivative_root: Path,
-    config: dict[str, Any],
-    progress: ProgressCallback | None,
-    conn,
-    run_id: int | None,
-    max_workers: int,
-) -> list[PairProcessResult]:
-    total = len(pair_list)
-    results: list[PairProcessResult] = []
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_pair: dict[Future[PairProcessResult], PairedImage] = {}
-
-        for pair in pair_list:
-            pair_id = make_pair_id(pair)
-
-            if is_processable_status(pair.status):
-                emit_progress(
-                    progress,
-                    current=0,
-                    total=total,
-                    pair_id=pair_id,
-                    status=STATUS_STARTED,
-                )
-
-            future = executor.submit(
-                process_one_pair,
-                pair,
-                source_root=source_root,
-                derivative_root=derivative_root,
-                config=config,
-            )
-            future_to_pair[future] = pair
-
-        completed = 0
-
-        for future in as_completed(future_to_pair):
-            result = future.result()
-            results.append(result)
-            completed += 1
-
-            if conn is not None and run_id is not None:
-                write_result_to_db(conn=conn, run_id=run_id, result=result)
-
-            emit_progress(
-                progress,
-                current=completed,
-                total=total,
-                pair_id=result.pair_id,
-                status=result.status,
-                message=result.error_message,
-            )
-
-    return results
-
-
 # ============================================================
 # Main Batch Processing Logic
 # ============================================================
@@ -340,10 +209,10 @@ def process_all_pairs(
     config: dict[str, Any],
     progress: ProgressCallback | None = None,
     db_path: Path | None = None,
-    max_workers: int = 1,
 ) -> BatchProcessSummary:
     pair_list = list(pairs)
     total = len(pair_list)
+    results: list[PairProcessResult] = []
 
     conn = None
     run_id: int | None = None
@@ -360,27 +229,71 @@ def process_all_pairs(
         )
 
     try:
-        if max_workers <= 1:
-            results = _process_pairs_sequential(
-                pair_list=pair_list,
-                source_root=source_root,
-                derivative_root=derivative_root,
-                config=config,
-                progress=progress,
-                conn=conn,
-                run_id=run_id,
+        for current, pair in enumerate(pair_list, start=1):
+            pair_id = make_pair_id(pair)
+
+            if not is_processable_status(pair.status):
+                result = build_skipped_result(pair, reason="pair status is ambiguous")
+                results.append(result)
+
+                if conn is not None and run_id is not None:
+                    write_result_to_db(conn=conn, run_id=run_id, result=result)
+
+                emit_progress(
+                    progress,
+                    current=current,
+                    total=total,
+                    pair_id=pair_id,
+                    status=STATUS_SKIPPED,
+                    message=result.error_message,
+                )
+                continue
+
+            emit_progress(
+                progress,
+                current=current,
+                total=total,
+                pair_id=pair_id,
+                status=STATUS_STARTED,
             )
-        else:
-            results = _process_pairs_parallel(
-                pair_list=pair_list,
-                source_root=source_root,
-                derivative_root=derivative_root,
-                config=config,
-                progress=progress,
-                conn=conn,
-                run_id=run_id,
-                max_workers=max_workers,
-            )
+
+            try:
+                analysis_result = process_pair(
+                    pair=pair,
+                    source_root=source_root,
+                    derivative_root=derivative_root,
+                    config=config,
+                )
+                result = build_result_from_analysis(pair, analysis_result)
+                results.append(result)
+
+                if conn is not None and run_id is not None:
+                    write_result_to_db(conn=conn, run_id=run_id, result=result)
+
+                emit_progress(
+                    progress,
+                    current=current,
+                    total=total,
+                    pair_id=pair_id,
+                    status=result.status,
+                    message=result.error_message,
+                )
+
+            except Exception as exc:
+                result = build_failed_result_from_exception(pair, exc)
+                results.append(result)
+
+                if conn is not None and run_id is not None:
+                    write_result_to_db(conn=conn, run_id=run_id, result=result)
+
+                emit_progress(
+                    progress,
+                    current=current,
+                    total=total,
+                    pair_id=pair_id,
+                    status=STATUS_FAILED,
+                    message=result.error_message,
+                )
 
         succeeded = sum(1 for r in results if r.status == STATUS_SUCCESS)
         failed = sum(1 for r in results if r.status == STATUS_FAILED)

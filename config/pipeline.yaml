@@ -6,6 +6,7 @@ tools:
 paths:
   source_root: /Users/bob/photos_for_tests
   derivative_root: /Users/bob/photo_derivatives
+  db_path: /Users/bob/photo_culling/database/photo_culling.db
                               
 files:
   raw_extensions:
@@ -14,9 +15,6 @@ files:
     - .cr2
     - .cr3
     - .dng
-    - .rw2
-    - .orf
-    - .raf
   jpeg_extensions:
     - .jpg
     - .jpeg
@@ -98,7 +96,7 @@ metadata:
 derivatives:
   preserve_relative_paths: true
   jpeg_quality: 92
-  overwrite_existing: false
+  overwrite_existing: true
 
 logging:
   level: INFO

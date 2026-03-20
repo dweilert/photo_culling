@@ -25,6 +25,7 @@ class ToolsConfig:
 class PathsConfig:
     source_root: str
     derivative_root: str
+    db_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -184,6 +185,7 @@ def load_pipeline_config(config_path: str | Path) -> PipelineConfig:
     paths_cfg = PathsConfig(
         source_root=_require_str(paths_raw, "source_root"),
         derivative_root=_require_str(paths_raw, "derivative_root"),
+        db_path=_optional_str(paths_raw, "db_path"),
     )
 
     files = FilesConfig(

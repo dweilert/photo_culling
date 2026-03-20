@@ -218,3 +218,69 @@ def finalize_run(
         (status, run_id, run_id, run_id, run_id, run_id),
     )
     conn.commit()
+
+
+# ============================================================
+# Read Helpers
+# ============================================================
+
+
+def get_latest_run(conn: sqlite3.Connection) -> sqlite3.Row | None:
+    return conn.execute("""
+        SELECT *
+        FROM runs
+        ORDER BY run_id DESC
+        LIMIT 1
+        """).fetchone()
+
+
+def get_run(conn: sqlite3.Connection, *, run_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        """
+        SELECT *
+        FROM runs
+        WHERE run_id = ?
+        """,
+        (run_id,),
+    ).fetchone()
+
+
+def get_run_items(conn: sqlite3.Connection, *, run_id: int) -> list[sqlite3.Row]:
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM items
+        WHERE run_id = ?
+        ORDER BY rel_dir, base_name, pair_id
+        """,
+        (run_id,),
+    ).fetchall()
+    return list(rows)
+
+
+def get_failed_items(conn: sqlite3.Connection, *, run_id: int) -> list[sqlite3.Row]:
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM items
+        WHERE run_id = ?
+          AND item_status = 'failed'
+        ORDER BY rel_dir, base_name, pair_id
+        """,
+        (run_id,),
+    ).fetchall()
+    return list(rows)
+
+
+def get_skipped_items(conn: sqlite3.Connection, *, run_id: int) -> list[sqlite3.Row]:
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM items
+        WHERE run_id = ?
+          AND item_status = 'skipped'
+        ORDER BY rel_dir, base_name, pair_id
+        """,
+        (run_id,),
+    ).fetchall()
+    return list(rows)
