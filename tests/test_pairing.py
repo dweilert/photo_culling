@@ -124,7 +124,7 @@ def test_discover_assets_file_as_root_raises(tmp_path: Path) -> None:
         pass
 
 
-def test_discover_assets_ignores_non_raw_non_jpeg(tmp_path: Path) -> None:
+def test_discover_assets_classifies_non_raw_non_jpeg_as_other(tmp_path: Path) -> None:
     source_root = tmp_path / "photos"
     _make_file(source_root / "IMG_0001.ARW")
     _make_file(source_root / "IMG_0001.JPG")
@@ -132,10 +132,16 @@ def test_discover_assets_ignores_non_raw_non_jpeg(tmp_path: Path) -> None:
     _make_file(source_root / "video.mp4")
 
     assets = discover_assets(source_root, _basic_config())
-    kinds = {a.kind for a in assets}
 
-    assert "other" not in kinds
-    assert len(assets) == 2
+    # discover_assets returns all files — non-raw/jpeg get classified as "other"
+    assert len(assets) == 4
+    kinds = {a.kind for a in assets}
+    assert "other" in kinds
+
+    # pair_assets is what ignores "other" — only raw/jpeg become pairs
+    pairs = pair_assets(assets)
+    assert len(pairs) == 1
+    assert pairs[0].status == "paired"
 
 
 def test_pair_assets_empty_input_returns_empty() -> None:

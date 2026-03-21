@@ -37,6 +37,11 @@ def _make_config(db_path: str | None = "/tmp/test.db"):
     return SimpleNamespace(paths=paths)
 
 
+def _patch_asdict(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Patch asdict so it works with SimpleNamespace configs."""
+    monkeypatch.setattr(run_pipeline, "asdict", lambda obj: {})
+
+
 def _make_summary(total=2, succeeded=2, failed=0, skipped=0):
     return SimpleNamespace(
         total=total,
@@ -55,6 +60,7 @@ def test_main_calls_discover_and_pair(monkeypatch: pytest.MonkeyPatch) -> None:
     discover_calls = []
     pair_calls = []
 
+    _patch_asdict(monkeypatch)
     monkeypatch.setattr(
         run_pipeline, "load_pipeline_config", lambda _: _make_config()
     )
@@ -81,6 +87,7 @@ def test_main_calls_discover_and_pair(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_main_passes_db_path_to_process(monkeypatch: pytest.MonkeyPatch) -> None:
     captured_kwargs = {}
 
+    _patch_asdict(monkeypatch)
     monkeypatch.setattr(
         run_pipeline, "load_pipeline_config", lambda _: _make_config(db_path="/my/db.db")
     )
@@ -101,6 +108,7 @@ def test_main_passes_db_path_to_process(monkeypatch: pytest.MonkeyPatch) -> None
 def test_main_passes_none_db_path_when_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     captured_kwargs = {}
 
+    _patch_asdict(monkeypatch)
     monkeypatch.setattr(
         run_pipeline, "load_pipeline_config", lambda _: _make_config(db_path=None)
     )
@@ -119,6 +127,7 @@ def test_main_passes_none_db_path_when_not_configured(monkeypatch: pytest.Monkey
 
 
 def test_main_prints_summary(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    _patch_asdict(monkeypatch)
     monkeypatch.setattr(
         run_pipeline, "load_pipeline_config", lambda _: _make_config()
     )
@@ -139,6 +148,7 @@ def test_main_prints_summary(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
 
 
 def test_main_prints_config_paths(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    _patch_asdict(monkeypatch)
     monkeypatch.setattr(
         run_pipeline,
         "load_pipeline_config",
@@ -160,6 +170,7 @@ def test_main_prints_config_paths(monkeypatch: pytest.MonkeyPatch, capsys) -> No
 def test_main_passes_source_and_derivative_roots(monkeypatch: pytest.MonkeyPatch) -> None:
     captured_kwargs = {}
 
+    _patch_asdict(monkeypatch)
     monkeypatch.setattr(
         run_pipeline, "load_pipeline_config", lambda _: _make_config()
     )
