@@ -143,6 +143,108 @@ def test_render_failure_with_mocked_subprocess(tmp_path: Path, monkeypatch) -> N
     assert result.error == "darktable-cli render failed"
 
 
+def test_render_source_is_directory_not_file(tmp_path: Path) -> None:
+    config = _config()
+
+    source_dir = tmp_path / "not_a_file"
+    source_dir.mkdir()
+    output_jpeg = tmp_path / "out.jpg"
+
+    result = render_raw_to_jpeg(
+        source_raw=source_dir,
+        output_jpeg=output_jpeg,
+        config=config,
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert "not a file" in result.error
+
+
+def test_render_renderer_executable_not_found(tmp_path: Path, monkeypatch) -> None:
+    config = _config()
+
+    source_raw = tmp_path / "IMG_0010.ARW"
+    output_jpeg = tmp_path / "out" / "IMG_0010.jpg"
+    _make_file(source_raw)
+
+    def fake_run(cmd, capture_output, text, check):
+        raise FileNotFoundError("darktable-cli not found")
+
+    monkeypatch.setattr("photo_culling.raw_render.subprocess.run", fake_run)
+
+    result = render_raw_to_jpeg(
+        source_raw=source_raw,
+        output_jpeg=output_jpeg,
+        config=config,
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert "not found" in result.error.lower()
+
+
+def test_render_unexpected_subprocess_exception(tmp_path: Path, monkeypatch) -> None:
+    config = _config()
+
+    source_raw = tmp_path / "IMG_0011.ARW"
+    output_jpeg = tmp_path / "out" / "IMG_0011.jpg"
+    _make_file(source_raw)
+
+    def fake_run(cmd, capture_output, text, check):
+        raise OSError("some unexpected OS error")
+
+    monkeypatch.setattr("photo_culling.raw_render.subprocess.run", fake_run)
+
+    result = render_raw_to_jpeg(
+        source_raw=source_raw,
+        output_jpeg=output_jpeg,
+        config=config,
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert "unexpected" in result.error.lower()
+
+
+def test_render_zero_exit_but_output_missing(tmp_path: Path, monkeypatch) -> None:
+    config = _config()
+
+    source_raw = tmp_path / "IMG_0012.ARW"
+    output_jpeg = tmp_path / "out" / "IMG_0012.jpg"
+    _make_file(source_raw)
+
+    def fake_run(cmd, capture_output, text, check):
+        # Does NOT create the output file
+        return SimpleNamespace(returncode=0, stdout="done", stderr="")
+
+    monkeypatch.setattr("photo_culling.raw_render.subprocess.run", fake_run)
+
+    result = render_raw_to_jpeg(
+        source_raw=source_raw,
+        output_jpeg=output_jpeg,
+        config=config,
+    )
+
+    assert result.success is False
+    assert result.created is False
+    assert result.return_code == 0
+    assert result.error is not None
+
+
+def test_build_darktable_command_uses_configured_path() -> None:
+    config = {
+        "tools": {"darktable_cli": "/usr/local/bin/darktable-cli"},
+        "render": {"overwrite_existing": False},
+    }
+    cmd = build_darktable_command(
+        source_raw=Path("/photos/IMG.ARW"),
+        output_jpeg=Path("/out/IMG.jpg"),
+        config=config,
+    )
+    assert cmd[0] == "/usr/local/bin/darktable-cli"
+
+
 def test_render_force_overwrites_existing_output(tmp_path: Path, monkeypatch) -> None:
     config = _config()
 

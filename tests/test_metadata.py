@@ -129,6 +129,69 @@ def test_copy_metadata_success_with_mocked_exiftool(tmp_path: Path, monkeypatch)
     assert result.warnings == []
 
 
+def test_copy_metadata_validation_warnings_on_missing_tags(
+    tmp_path: Path, monkeypatch
+) -> None:
+    raw = tmp_path / "test.ARW"
+    jpg = tmp_path / "test.jpg"
+    _make_file(raw)
+    _make_file(jpg)
+
+    call_counter = {"count": 0}
+
+    def fake_run(cmd, capture_output, text, check):
+        call_counter["count"] += 1
+        if call_counter["count"] == 1:
+            # copy succeeds
+            return SimpleNamespace(returncode=0, stdout="copied", stderr="")
+        # validation returns fewer lines than expected tags → missing tag warnings
+        return SimpleNamespace(returncode=0, stdout="2024:01:01 10:00:00\n", stderr="")
+
+    monkeypatch.setattr("photo_culling.metadata.subprocess.run", fake_run)
+
+    result = copy_metadata_from_raw_to_jpeg(
+        raw_path=raw,
+        jpeg_path=jpg,
+        config=_config(),
+        pipeline_version="0.1.0",
+    )
+
+    # Still succeeds, but warnings are populated
+    assert result.success is True
+    assert len(result.warnings) > 0
+    assert any("Missing" in w for w in result.warnings)
+
+
+def test_copy_metadata_validation_failure_recorded_as_warning(
+    tmp_path: Path, monkeypatch
+) -> None:
+    raw = tmp_path / "test.ARW"
+    jpg = tmp_path / "test.jpg"
+    _make_file(raw)
+    _make_file(jpg)
+
+    call_counter = {"count": 0}
+
+    def fake_run(cmd, capture_output, text, check):
+        call_counter["count"] += 1
+        if call_counter["count"] == 1:
+            return SimpleNamespace(returncode=0, stdout="copied", stderr="")
+        # validation call fails
+        return SimpleNamespace(returncode=1, stdout="", stderr="exiftool read error")
+
+    monkeypatch.setattr("photo_culling.metadata.subprocess.run", fake_run)
+
+    result = copy_metadata_from_raw_to_jpeg(
+        raw_path=raw,
+        jpeg_path=jpg,
+        config=_config(),
+    )
+
+    assert result.success is True
+    assert len(result.warnings) > 0
+    assert any("Validation failed" in w for w in result.warnings)
+
+
 def test_copy_metadata_exiftool_failure(tmp_path: Path, monkeypatch) -> None:
     raw = tmp_path / "test.ARW"
     jpg = tmp_path / "test.jpg"

@@ -1,0 +1,3 @@
+# Test dependencies for the render worker
+pytest
+httpx

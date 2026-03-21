@@ -93,3 +93,65 @@ def test_pairing_flags_ambiguous_multiple_jpegs(tmp_path: Path) -> None:
     assert pair.raw_count == 1
     assert pair.jpeg_count == 2
     assert "multiple_jpegs:2" in pair.notes
+
+
+def test_discover_assets_empty_directory(tmp_path: Path) -> None:
+    source_root = tmp_path / "empty"
+    source_root.mkdir()
+
+    assets = discover_assets(source_root, _basic_config())
+    assert assets == []
+
+
+def test_discover_assets_nonexistent_root_raises(tmp_path: Path) -> None:
+    missing = tmp_path / "does_not_exist"
+
+    try:
+        discover_assets(missing, _basic_config())
+        assert False, "Expected FileNotFoundError"
+    except FileNotFoundError:
+        pass
+
+
+def test_discover_assets_file_as_root_raises(tmp_path: Path) -> None:
+    file_path = tmp_path / "not_a_dir.txt"
+    file_path.write_text("hello")
+
+    try:
+        discover_assets(file_path, _basic_config())
+        assert False, "Expected NotADirectoryError"
+    except NotADirectoryError:
+        pass
+
+
+def test_discover_assets_ignores_non_raw_non_jpeg(tmp_path: Path) -> None:
+    source_root = tmp_path / "photos"
+    _make_file(source_root / "IMG_0001.ARW")
+    _make_file(source_root / "IMG_0001.JPG")
+    _make_file(source_root / "document.pdf")
+    _make_file(source_root / "video.mp4")
+
+    assets = discover_assets(source_root, _basic_config())
+    kinds = {a.kind for a in assets}
+
+    assert "other" not in kinds
+    assert len(assets) == 2
+
+
+def test_pair_assets_empty_input_returns_empty() -> None:
+    result = pair_assets([])
+    assert result == []
+
+
+def test_pairing_case_insensitive_stem_matching(tmp_path: Path) -> None:
+    source_root = tmp_path / "photos"
+
+    # RAW has uppercase stem, JPEG has lowercase stem — should still pair
+    _make_file(source_root / "IMG_5000.ARW")
+    _make_file(source_root / "img_5000.JPG")
+
+    assets = discover_assets(source_root, _basic_config())
+    pairs = pair_assets(assets)
+
+    assert len(pairs) == 1
+    assert pairs[0].status == "paired"
